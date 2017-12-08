@@ -1,5 +1,5 @@
-# Repository Name
-A single sentence description of the repository.
+# Sites Register
+A Linked Data Register of all of Geoscience Australia's sites.
 
 Here is where you should add a longer description about the repository. You could have a single paragraph of text, rather like and abstract, or you could have a very long description containing any amount of sections, subsections, subheadings etc.
 
