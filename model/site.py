@@ -9,6 +9,7 @@ import _config as conf
 from _ldapi.__init__ import LDAPI
 from datetime import datetime
 import json
+json.encoder.FLOAT_REPR = lambda f: ("%.2f" % f)
 
 
 class Site:
@@ -16,8 +17,9 @@ class Site:
     URI_GA = 'http://pid.geoscience.gov.au/org/ga/geoscienceausralia'
 
     def __init__(self, site_no, xml=None):
-        self.site_no = None
+        self.site_no = site_no
         self.site_type = None
+        self.site_description = None
         self.status = None
 
         if xml is not None:  # even if there are values for Oracle API URI and IGSN, load from XML file if present
@@ -35,21 +37,26 @@ class Site:
             print('not valid xml')
             return False
 
+    def _make_vocab_uri(self, xml_value, vocab_type):
+        from model.lookups import TERM_LOOKUP
+        if TERM_LOOKUP[vocab_type].get(xml_value) is not None:
+            return TERM_LOOKUP[vocab_type].get(xml_value)
+        else:
+            return TERM_LOOKUP[vocab_type].get('unknown')
+
     def _populate_from_oracle_api(self):
         """
-        Populates this instance with data from the Oracle Samples table API
+        Populates this instance with data from the Oracle Sites table API
 
-        :param oracle_api_samples_url: the Oracle XML API URL string for a single sample
-        :param igsn: the IGSN of the sample desired
+        :param eno: (from class) the Entity Number of the Site desired
         :return: None
         """
         # internal URI
         # os.environ['NO_PROXY'] = 'ga.gov.au'
         # call API
-        r = requests.get(_config.XML_API_URL_SITE.format(self.igsn))
+        r = requests.get(conf.XML_API_URL_SITE.format(self.site_no))
         if "No data" in r.content.decode('utf-8'):
             raise ParameterError('No Data')
-
         if self.validate_xml(r.content):
             self._populate_from_xml_file(r.content)
             return True
@@ -66,76 +73,26 @@ class Site:
         try:
             root = objectify.fromstring(xml)
 
-            self.igsn = root.ROW.IGSN
-            if hasattr(root.ROW, 'SAMPLEID'):
-                self.sample_id = root.ROW.SAMPLEID
-            self.sample_no = root.ROW.SAMPLENO
-            self.access_rights = self._make_vocab_uri('public', 'access_rights')  # this value is statically set to 'public' for all samples
-            if hasattr(root.ROW, 'REMARK'):
-                self.remark = str(root.ROW.REMARK).strip() if len(str(root.ROW.REMARK)) > 5 else None
-            if hasattr(root.ROW, 'SAMPLE_TYPE_NEW'):
-                self.sample_type = self._make_vocab_uri(root.ROW.SAMPLE_TYPE_NEW, 'sample_type')
-            if hasattr(root.ROW, 'SAMPLING_METHOD'):
-                self.method_type = self._make_vocab_uri(root.ROW.SAMPLING_METHOD, 'method_type')
-            if hasattr(root.ROW, 'MATERIAL_CLASS'):
-                self.material_type = self._make_vocab_uri(root.ROW.MATERIAL_CLASS, 'material_type')
-            # self.long_min = root.ROW.SAMPLE_MIN_LONGITUDE
-            # self.long_max = root.ROW.SAMPLE_MAX_LONGITUDE
-            # self.lat_min = root.ROW.SAMPLE_MIN_LATITUDE
-            # self.lat_max = root.ROW.SAMPLE_MAX_LATITUDE
-            if hasattr(root.ROW, 'SDO_GTYPE'):
-                self.gtype = root.ROW.GEOM.SDO_GTYPE
-
-            self.srid = 'GDA94'  # if root.ROW.GEOM.SDO_SRID == '8311' else root.ROW.GEOM.SDO_SRID
-
+            if hasattr(root.ROW, 'ENTITYID'):
+                self.entity_id = str(root.ROW.ENTITYID)
+            if hasattr(root.ROW, 'ENTITY_TYPE'):
+                self.entity_type = self._make_vocab_uri(root.ROW.ENTITY_TYPE, 'entity_type')
+                self.site_description = '{} ({})'.format(str(root.ROW.ENTITY_TYPE), self.entity_type)
             if hasattr(root.ROW, 'GEOM'):
                 if hasattr(root.ROW.GEOM, 'SDO_POINT'):
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'X'):
-                        self.x = root.ROW.GEOM.SDO_POINT.X
+                        self.x = float(root.ROW.GEOM.SDO_POINT.X)
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'Y'):
-                        self.y = root.ROW.GEOM.SDO_POINT.Y
+                        self.y = float(root.ROW.GEOM.SDO_POINT.Y)
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'Z'):
-                        self.z = root.ROW.GEOM.SDO_POINT.Z
-                if hasattr(root.ROW.GEOM, 'SDO_ELEM_INFO'):
-                    self.elem_info = root.ROW.GEOM.SDO_ELEM_INFO
-                if hasattr(root.ROW, 'SDO_ORDINATES'):
-                    self.ordinates = root.ROW.GEOM.SDO_ORDINATES
-            if hasattr(root.ROW, 'STATEID'):
-                self.state = root.ROW.STATEID  # self._make_vocab_uri(root.ROW.STATEID, 'state')
+                        self.z = float(root.ROW.GEOM.SDO_POINT.Z)
+            if hasattr(root.ROW, 'ACCESS_CODE'):
+                self.access_code = root.ROW.ACCESS_CODE
+            if hasattr(root.ROW, 'ENTRYDATE'):
+                self.entry_date = root.ROW.ENTRYDATE
             if hasattr(root.ROW, 'COUNTRY'):
                 self.country = root.ROW.COUNTRY
-            if hasattr(root.ROW, 'TOP_DEPTH'):
-                self.depth_top = root.ROW.TOP_DEPTH
-            if hasattr(root.ROW, 'BASE_DEPTH'):
-                self.depth_base = root.ROW.BASE_DEPTH
-            if hasattr(root.ROW, 'STRATNAME'):
-                self.strath = root.ROW.STRATNAME
-            if hasattr(root.ROW, 'AGE'):
-                self.age = root.ROW.AGE
-            if hasattr(root.ROW, 'LITHNAME'):
-                self.lith = self._make_vocab_uri(root.ROW.LITHNAME, 'lithology')
-            if hasattr(root.ROW, 'ACQUIREDATE'):
-                self.date_acquired = str2datetime(root.ROW.ACQUIREDATE).date()
-            if hasattr(root.ROW, 'MODIFIED_DATE'):
-                self.date_modified = str2datetime(root.ROW.MODIFIED_DATE)
-            if hasattr(root.ROW, 'ENO'):
-                self.entity_uri = 'http://pid.geoscience.gov.au/site/' + str(root.ROW.ENO)
-            if hasattr(root.ROW, 'ENTITYID'):
-                self.entity_name = root.ROW.ENTITYID
-            if hasattr(root.ROW, 'ENTITYID'):
-                self.entity_type = self._make_vocab_uri(root.ROW.ENTITY_TYPE, 'entity_type')
-            if hasattr(root.ROW, 'HOLE_MIN_LONGITUDE'):
-                self.hole_long_min = root.ROW.HOLE_MIN_LONGITUDE
-            if hasattr(root.ROW, 'HOLE_MAX_LONGITUDE'):
-                self.hole_long_max = root.ROW.HOLE_MAX_LONGITUDE
-            if hasattr(root.ROW, 'HOLE_MIN_LATITUDE'):
-                self.hole_lat_min = root.ROW.HOLE_MIN_LATITUDE
-            if hasattr(root.ROW, 'HOLE_MAX_LATITUDE'):
-                self.hole_lat_max = root.ROW.HOLE_MAX_LATITUDE
-            # self.date_modified = None
-            # self.modified_datestamp = None
-            # TODO: replace all the other calls to this with a call to self.wkt instead
-            # self.wkt = self._generate_sample_wkt()
+
         except Exception as e:
             print(e)
 
@@ -182,7 +139,7 @@ class Site:
                 'geometry': {
                     'type': 'Point',
                     'coordinates': [
-                        149, -35, 21
+                        self.x, self.y, self.z
                     ]
                 },
                 'crs': {
@@ -194,7 +151,7 @@ class Site:
                 },
                 'properties': {
                     'name': '{} {}'.format('Site', self.site_no),
-                    'siteDescription': self.site_type,
+                    'siteDescription': self.site_description,
                     'siteLicence': 'open-CC',  # http://cloud.neii.gov.au/neii/neii-licencing/version-1/concept
                     'siteURL': '{}{}'.format(conf.URI_SITE_INSTANCE_BASE, self.site_no),
                     'operatingAuthority': {
@@ -211,10 +168,10 @@ class Site:
                 'observingCapabilities': {}  # TODO: generate this in observing_capabilities.py and import
             },
         }
-
+        print(json.dumps(site))
         return Response(
             json.dumps(site),
-            mimetype='pplication/vnd.geo+json'
+            mimetype='application/vnd.geo+json'
         )
 
     def export_rdf(self, model_view='pdm', rdf_mime='text/turtle'):
@@ -321,3 +278,9 @@ class Site:
 
 class ParameterError(ValueError):
     pass
+
+
+if __name__ == '__main__':
+    s = Site(17943)
+    s._populate_from_oracle_api()
+    print(s.export_nemsr_geojson())
