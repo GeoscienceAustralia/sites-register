@@ -20,12 +20,13 @@ XML_API_URL_SITESET_DATE_RANGE = \
 XML_API_URL_SITES_TOTAL_COUNT = 'http://dbforms.ga.gov.au/www/a.entities_api.get_total_number_records'
 XML_API_URL_SITES_TOTAL_COUNT_DATE_RANGE = 'http://dbforms.ga.gov.au/www/a.entities_api.get_Number_Modified?' \
                                            'pModifiedFromDate={0}&pModifiedToDate={1}'
+PAGE_SIZE_DEFAULT = 100
 
 ADMIN_EMAIL = 'dataman@ga.gov.au'
 
 URI_NETWORK_CLASS = 'http://pid.geoscience.gov.au/def/ont/ga/pdm#SiteNetwork'
 URI_NETWORK_INSTANCE_BASE = 'http://pid.geoscience.gov.au/network/'
-URI_SITE_CLASS = 'http://pid.geoscience.gov.au/def/ont/ga/pdm#Sample'
+URI_SITE_CLASS = 'http://pid.geoscience.gov.au/def/ont/ga/pdm#Site'
 URI_SITE_INSTANCE_BASE = 'http://pid.geoscience.gov.au/site/'
 
 GOOGLE_MAPS_API_KEY_EMBED = 'AIzaSyDhuFCoJynhhQT7rcgKYzk3i7K77IEwjO4'

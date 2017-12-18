@@ -261,7 +261,7 @@ class Site:
 
         return Response(
             render_template(
-                'page_site.html',
+                'class_site.html',
                 view=model_view,
                 igsn=self.igsn,
                 year_acquired=year_acquired,
