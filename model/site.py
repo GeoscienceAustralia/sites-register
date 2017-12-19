@@ -128,9 +128,7 @@ class Site:
                 var point = new google.maps.LatLng(bboxCoords[i].lat(), bboxCoords[i].lng());
                 bounds.extend(point);
             }            
-            map.fitBounds(bounds);    
-
-                       
+            map.fitBounds(bounds);                           
             ''' % ',\n'.join(coords)
         else:
             js = ''
@@ -217,20 +215,29 @@ class Site:
                 return self.export_html(model_view=view)
             else:
                 return Response(self.export_rdf(view, mimetype), mimetype=mimetype)
-        elif view == 'dc':
-            if mimetype == 'text/html':
-                return self.export_html(model_view=view)
-            elif mimetype == 'text/xml':
-                return Response(self.export_dc_xml(), mimetype=mimetype)
-            else:
-                return Response(self.export_rdf(view, mimetype), mimetype=mimetype)
-        elif view == 'prov':
-            if mimetype == 'text/html':
-                return self.export_html(model_view=view)
-            else:
-                return Response(self.export_rdf(view, mimetype), mimetype=mimetype)
-        elif view == 'sosa':  # RDF only for this view
-            return Response(self.export_rdf(view, mimetype), mimetype=mimetype)
+        elif view == 'nemsr':
+            return self.export_nemsr_geojson()
+
+    def _make_geojson_geometry(self):
+        if self.geometry_type == 'Point':
+            g = {
+                'type': 'Point',
+                'coordinates': [
+                    self.x, self.y, self.z
+                ]
+            }
+        else:  # elif self.geometry_type == 'Polygon':
+            coords = []
+            for coord in zip(self.lons, self.lats):
+                coords.append([float(coord[0]), float(coord[1])])
+            g = {
+                'type': 'Polygon',
+                'coordinates': [
+                    coords
+                ]
+            }
+
+        return g
 
     def export_nemsr_geojson(self):
         """
@@ -246,12 +253,7 @@ class Site:
             'features': {
                 'type': 'Feature',
                 'id': '{}{}'.format(conf.URI_SITE_INSTANCE_BASE, self.site_no),
-                'geometry': {
-                    'type': 'Point',
-                    'coordinates': [
-                        self.x, self.y, self.z
-                    ]
-                },
+                'geometry': self._make_geojson_geometry(),
                 'crs': {
                     'type': 'link',
                     'properties': {
@@ -278,7 +280,6 @@ class Site:
                 'observingCapabilities': {}  # TODO: generate this in observing_capabilities.py and import
             },
         }
-        print(json.dumps(site))
         return Response(
             json.dumps(site),
             mimetype='application/vnd.geo+json'
@@ -296,16 +297,38 @@ class Site:
         :return: RDF string
         """
 
+        '''
+        <http://pid.geoscience.gov.au/site/9810> a <http://vocabulary.odm2.org/samplingfeaturetype/borehole>, <http://www.w3.org/2002/07/owl#NamedIndividual> ;
+            samfl:samplingElevation [ a samfl:Elevation ;
+            samfl:elevation "231.69716"^^xsd:float ;
+            samfl:verticalDatum "http://spatialreference.org/ref/epsg/4283/"^^xsd:anyUri ] ;
+            geosp:hasGeometry [ 
+                a geosp:Geometry ;
+                geosp:asWKT "SRID=GDA94;POINT(143.36786389 -25.94903611)"^^geosp:wktLiteral 
+            ] .
+        
+        <http://registry.it.csiro.au/sandbox/csiro/oznome/feature/earth-realm/lithosphere> a sosa:FeatureOfInterest ;
+            skos:exactMatch <http://sweetontology.net/realmGeol/Lithosphere> .
+        
+        <http://vocabulary.odm2.org/samplingfeaturetype/borehole> rdfs:subClassOf sosa:Sample .
+        '''
         # things that are applicable to all model views; the graph and some namespaces
         g = Graph()
+        GEO = Namespace('http://www.opengis.net/ont/geosparql#')
+        g.bind('geo', GEO)
 
-        # URI for this sample
-        base_uri = 'http://pid.geoscience.gov.au/site/'
-        this_site = URIRef(base_uri + self.site_no)
+        # URI for this site
+        this_site = URIRef(conf.URI_SITE_INSTANCE_BASE + self.site_no)
+        g.add((this_site, RDF.type, URIRef(self.site_type)))
+        g.add((this_site, RDF.type, URIRef('http://www.w3.org/2002/07/owl#NamedIndividual')))
         g.add((this_site, RDFS.label, Literal('Site ' + self.site_no, datatype=XSD.string)))
+        g.add((this_site, RDFS.comment, Literal(self.description, datatype=XSD.string)))
+        site_geometry = BNode()
+        g.add((this_site, GEO.hasGeometry, site_geometry))
+        g.add((site_geometry, RDF.type, GEO.Geometry))
+        g.add((site_geometry, GEO.asWKT, Literal(self._generate_wkt(), datatype=GEO.wktLiteral)))
 
-        # define GA
-        ga = URIRef(Site.URI_GA)
+        return g.serialize(format=LDAPI.get_rdf_parser_for_mimetype(rdf_mime))
 
     def export_html(self, model_view='pdm'):
         """
