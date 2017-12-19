@@ -144,9 +144,43 @@ def sites():
         return client_error_Response(e)
 
 
-@routes.route('/site/<string:site_id>')
-def site(site_id):
-    return render_template(
-        'class_site.html',
-        site_id=site_id
-    )
+@routes.route('/site/<string:site_no>')
+def site(site_no):
+    """
+    A single Site
+
+    :return: HTTP Response
+    """
+    # lists the views and formats available for a Site
+    c = conf.URI_SITE_CLASS
+    views_formats = LDAPI.get_classes_views_formats().get(c)
+
+    try:
+        view, mimetype = LDAPI.get_valid_view_and_format(
+            request.args.get('_view'),
+            request.args.get('_format'),
+            views_formats
+        )
+
+        # if alternates model, return this info from file
+        if view == 'alternates':
+            instance_uri = 'http://pid.geoscience.gov.au/site/' + site_no
+            del views_formats['renderer']
+            return render_alternates_view(
+                c,
+                uriparse.quote_plus(c),
+                instance_uri,
+                uriparse.quote_plus(instance_uri),
+                views_formats,
+                request.args.get('_format')
+            )
+        else:
+            from model.site import Site
+            try:
+                s = Site(site_no)
+                return s.render(view, mimetype)
+            except ValueError:
+                return render_template('class_site_no_record.html')
+
+    except LdapiParameterError as e:
+        return client_error_Response(e)

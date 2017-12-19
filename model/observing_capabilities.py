@@ -1,4 +1,4 @@
-def get_site_observing_capabilities(site_id):
+def get_site_observing_capabilities(site_no):
     oc = {
         "observedProperty": "atmosphere-atmosphericTemperature",  # TODO: get from http://cloud.neii.gov.au/neii/neii-observed-property/version-1/concept
         "procedure": "http://externalURI.com",  # TODO: make procedure Reigster

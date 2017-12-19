@@ -1,5 +1,3 @@
-from datetime import datetime
-from io import StringIO
 import requests
 from flask import Response, render_template
 from lxml import etree
@@ -19,8 +17,13 @@ class Site:
     def __init__(self, site_no, xml=None):
         self.site_no = site_no
         self.site_type = None
-        self.site_description = None
+        self.description = None
         self.status = None
+        self.entry_date = None
+        self.geometry_type = None
+        self.centroid_x = None
+        self.centroid_y = None
+        self.coords = None
 
         if xml is not None:  # even if there are values for Oracle API URI and IGSN, load from XML file if present
             self._populate_from_xml_file(xml)
@@ -43,6 +46,96 @@ class Site:
             return TERM_LOOKUP[vocab_type].get(xml_value)
         else:
             return TERM_LOOKUP[vocab_type].get('unknown')
+
+    def _make_vocab_alink(self, vocab_uri):
+        if vocab_uri is not None:
+            if vocab_uri.endswith('/'):
+                return '<a href="{}">{}</a>'.format(vocab_uri, vocab_uri.split('/')[-2])
+            else:
+                return '<a href="{}">{}</a>'.format(vocab_uri, vocab_uri.split('/')[-1])
+
+    def _generate_wkt(self):
+        """
+        Polygon: 8
+        Point: 6889
+        :return:
+        :rtype:
+        """
+        if self.geometry_type == 'Point':
+            coordinates = {
+                'srid': 'GDA94',
+                'x': self.x,
+                'y': self.y
+            }
+            wkt = 'SRID={srid};POINT({x} {y})'.format(**coordinates)
+        elif self.geometry_type == 'Polygon':
+            start = 'SRID={srid};POLYGON(('.format(srid='GDA94')
+            coordinates = ''
+            for coord in zip(self.lons, self.lats):
+                coordinates += '{} {},'.format(coord[0], coord[1])
+
+            coordinates = coordinates[:-1]  # drop the final ','
+            end = '))'
+            wkt = '{start}{coordinates}{end}'.format(start=start, coordinates=coordinates, end=end)
+        else:
+            wkt = ''
+
+        return wkt
+
+    def _generate_google_map_js(self):
+        if self.geometry_type == 'Point':
+            js = '''
+            var map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 6,
+                center: myLatLng
+            });
+            
+            var marker = new google.maps.Marker({
+                position: myLatLng,
+                map: map,
+                title: 'Site %s'
+            });
+            ''' % self.site_no
+        elif self.geometry_type == 'Polygon':
+            coords = []
+            for coord in zip(self.lons, self.lats):
+                coords.append('\t\t\t\tnew google.maps.LatLng(%06.8f, %06.8f)' % (coord[1], coord[0]))
+            # add the last first coordinate pair to end for complete polygon
+            coords.append('\t\t\t\tnew google.maps.LatLng(%06.8f, %06.8f)' % (self.lats[0], self.lons[0]))
+            js = '''
+            var map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 4,
+                center: myLatLng
+            });
+            
+            var bboxCoords = new Array(
+%s
+            );
+            // Construct the polygon.
+            var bbox = new google.maps.Polygon({
+                paths: bboxCoords,
+                strokeColor: '#FF0000',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: '#FF0000',
+                fillOpacity: 0.35
+            });
+
+            bbox.setMap(map);
+            
+            var bounds = new google.maps.LatLngBounds();        
+            for (var i=0; i<bbox.getPath().length; i++) {                
+                var point = new google.maps.LatLng(bboxCoords[i].lat(), bboxCoords[i].lng());
+                bounds.extend(point);
+            }            
+            map.fitBounds(bounds);    
+
+                       
+            ''' % ',\n'.join(coords)
+        else:
+            js = ''
+
+        return js
 
     def _populate_from_oracle_api(self):
         """
@@ -74,22 +167,39 @@ class Site:
             root = objectify.fromstring(xml)
 
             if hasattr(root.ROW, 'ENTITYID'):
-                self.entity_id = str(root.ROW.ENTITYID)
+                self.description = str(root.ROW.ENTITYID)
             if hasattr(root.ROW, 'ENTITY_TYPE'):
-                self.entity_type = self._make_vocab_uri(root.ROW.ENTITY_TYPE, 'entity_type')
-                self.site_description = '{} ({})'.format(str(root.ROW.ENTITY_TYPE), self.entity_type)
+                self.site_type = self._make_vocab_uri(root.ROW.ENTITY_TYPE, 'site_type')
             if hasattr(root.ROW, 'GEOM'):
+                # not using SDO_GTYP, 8001 & 8002 but instead checking for Point/Polygon etc by presense of child
+                # element, e.g. SDO_POINT or SDO_ORDINATES
                 if hasattr(root.ROW.GEOM, 'SDO_POINT'):
+                    self.geometry_type = 'Point'
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'X'):
                         self.x = float(root.ROW.GEOM.SDO_POINT.X)
+                        self.centroid_x = self.x
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'Y'):
                         self.y = float(root.ROW.GEOM.SDO_POINT.Y)
+                        self.centroid_y = self.y
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'Z'):
                         self.z = float(root.ROW.GEOM.SDO_POINT.Z)
+                elif hasattr(root.ROW.GEOM, 'SDO_ORDINATES'):
+                    self.geometry_type = 'Polygon'
+                    self.lons = []
+                    self.lats = []
+                    self.coords = []
+                    # iterate all childres, splitting into longs & lats
+                    for i, val in enumerate(root.ROW.GEOM.SDO_ORDINATES.getchildren()):
+                        if i % 2 == 0:
+                            self.lons.append(val)
+                        else:
+                            self.lats.append(val)
+                    self.centroid_x = sum(self.lons)/len(self.lons)
+                    self.centroid_y = sum(self.lats)/len(self.lats)
             if hasattr(root.ROW, 'ACCESS_CODE'):
                 self.access_code = root.ROW.ACCESS_CODE
             if hasattr(root.ROW, 'ENTRYDATE'):
-                self.entry_date = root.ROW.ENTRYDATE
+                self.entry_date = str(root.ROW.ENTRYDATE).split('T')[0]
             if hasattr(root.ROW, 'COUNTRY'):
                 self.country = root.ROW.COUNTRY
 
@@ -151,7 +261,7 @@ class Site:
                 },
                 'properties': {
                     'name': '{} {}'.format('Site', self.site_no),
-                    'siteDescription': self.site_description,
+                    'siteDescription': self.description,
                     'siteLicence': 'open-CC',  # http://cloud.neii.gov.au/neii/neii-licencing/version-1/concept
                     'siteURL': '{}{}'.format(conf.URI_SITE_INSTANCE_BASE, self.site_no),
                     'operatingAuthority': {
@@ -206,21 +316,15 @@ class Site:
         :return: HTML string
         """
         if model_view == 'pdm':
-            view_title = 'IGSN Ontology view'
+            view_title = 'PDM Ontology view'
             sample_table_html = render_template(
-                'class_sample_igsn-o.html',
-                igsn=self.igsn,
-                sample_id=self.sample_id,
-                description=self.remark,
-                access_rights_alink=self._make_vocab_alink(self.access_rights),
-                date_acquired=self.date_acquired if self.date_acquired is not None else '<a href="{}">{}</a>'.format(Sample.URI_MISSSING, Sample.URI_MISSSING.split('/')[-1]),
-                wkt=self._generate_sample_wkt(),
-                state=self.state,
-                sample_type_alink=self._make_vocab_alink(self.sample_type),
-                method_type_alink=self._make_vocab_alink(self.method_type),
-                material_type_alink=self._make_vocab_alink(self.material_type),
-                lithology_alink=self._make_vocab_alink(self.lith),
-                entity_type_alink=self._make_vocab_alink(self.entity_type)
+                'class_site_pdm.html',
+                site_no=self.site_no,
+                description=self.description,
+                wkt=self._generate_wkt(),
+                state=None,  # TODO: calculate
+                site_type_alink=self._make_vocab_alink(self.site_type),
+                entry_date=self.entry_date
             )
         elif model_view == 'prov':
             view_title = 'PROV Ontology view'
@@ -228,7 +332,7 @@ class Site:
             g = Graph().parse(data=prov_turtle, format='turtle')
 
             sample_table_html = render_template(
-                'class_sample_prov.html',
+                'class_site_prov.html',
                 visjs=self._make_vsjs(g),
                 prov_turtle=prov_turtle,
             )
@@ -236,41 +340,37 @@ class Site:
             view_title = 'Dublin Core view'
 
             sample_table_html = render_template(
-                'class_sample_dc.html',
-                identifier=self.igsn,
-                description=self.remark if self.remark != '' else '-',
-                date=self.date_acquired if self.date_acquired is not None else '<a href="{}">{}</a>'.format(
-                    Sample.URI_MISSSING, Sample.URI_MISSSING.split('/')[-1]),
-                type=self.sample_type,
-                format=self.material_type,
-                wkt=self._generate_sample_wkt(),
-                creator='<a href="{}">Geoscience Australia</a>'.format(Sample.URI_GA),
-                publisher='<a href="{}">Geoscience Australia</a>'.format(Sample.URI_GA),
+                'class_site_dc.html',
+                identifier=self.site_no,
+                description=self.description,
+                date=self.entry_date,
+                type=self.site_type,
+                wkt=self._generate_wkt(),
+                creator='<a href="{}">Geoscience Australia</a>'.format(Site.URI_GA),
+                publisher='<a href="{}">Geoscience Australia</a>'.format(Site.URI_GA),
             )
 
-        if self.date_acquired is not None:
-            year_acquired = '({})'.format(datetime.strftime(self.date_acquired, '%Y'))
-        else:
-            year_acquired = ''
-
         # add in the Pingback header links as they are valid for all HTML views
-        pingback_uri = conf.URI_SITE_INSTANCE_BASE + self.igsn + "/pingback"
+        pingback_uri = conf.URI_SITE_INSTANCE_BASE + self.site_no + "/pingback"
         headers = {
             'Link': '<{}>;rel = "http://www.w3.org/ns/prov#pingback"'.format(pingback_uri)
         }
 
         return Response(
             render_template(
-                'class_site.html',
+                'page_site.html',
                 view=model_view,
-                igsn=self.igsn,
-                year_acquired=year_acquired,
+                site_no=self.site_no,
+                entry_date=self.entry_date,
                 view_title=view_title,
                 sample_table_html=sample_table_html,
                 date_now=datetime.now().strftime('%d %B %Y'),
-                gm_key=_config.GOOGLE_MAPS_API_KEY,
-                lat=self.y,
-                lon=self.x
+                gm_key=conf.GOOGLE_MAPS_API_KEY,
+                google_maps_js=self._generate_google_map_js(),
+                lat=self.centroid_y,
+                lon=self.centroid_x,
+                geometry_type=self.geometry_type,
+                coords=self.coords
             ),
             headers=headers
         )

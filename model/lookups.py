@@ -23,7 +23,7 @@ TERM_LOOKUP = {
         'IND': 'http://www.geonames.org/1269750',
         'unknown': 'http://www.opengis.net/def/nil/OGC/0/unknown'
     },
-    'entity_type': {
+    'site_type': {
         'ACERAGERELEASE': 'http://pid.geoscience.gov.au/def/voc/ga/featureofinteresttype/aceragerelease',
         'BOREHOLE': 'http://pid.geoscience.gov.au/def/voc/ga/featureofinteresttype/borehole',
         'COUNTRY': 'http://pid.geoscience.gov.au/def/voc/ga/featureofinteresttype/country',

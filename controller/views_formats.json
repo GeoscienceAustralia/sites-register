@@ -32,7 +32,7 @@
 		},
         "pdm": {
 			"mimetypes": ["text/html", "text/turtle", "application/rdf+xml", "application/rdf+json", "application/vnd.geo+json"],
-			"default_mimetype": "text/turtle",
+			"default_mimetype": "text/html",
 			"namespace": "http://pid.geoscience.gov.au/def/ont/ga/pdm",
 			"description": "Geoscience Australia's Public Data Model ontology"
 		},
