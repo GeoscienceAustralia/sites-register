@@ -17,11 +17,6 @@ def index():
     )
 
 
-@routes.route('/func')
-def func():
-    return Response('this is a response from a function', mimetype='text/plain')
-
-
 @routes.route('/site/')
 def sites():
     """
