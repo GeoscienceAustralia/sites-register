@@ -126,7 +126,7 @@ def sites():
 
             return register.RegisterRenderer(
                 request,
-                'http://localhost:5000/site/',
+                conf.URI_SITE_INSTANCE_BASE,
                 conf.URI_SITE_CLASS,
                 None,
                 page,
