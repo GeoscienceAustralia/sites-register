@@ -25,10 +25,10 @@
     {{ sample_table_html|safe }}
 
     <h2>Other views</h2>
-    <p>Other views of this Sample are listed in the <a href="{{ url_for('controller.site', site_no=site_no) }}?_view=alternates">Alternates View</a>.</p>
+    <p>Other views of this Sample are listed in the <a href="http://pid.geoscience.gov.au/site/ga/{{ site_no }}?_view=alternates">Alternates View</a>.</p>
     <h2>Citation</h2>
     <p>If you wish to cite this site as you would a publication, please use the following format:</p>
     <code style="display:block; margin: 0 5em 0 5em;">
-        Geoscience Australia {{ year_acquired }} "Site {{ site_no }}". A digital catalogue record of a site utilised by Geoscience Australia. Accessed {{ date_now }}. <a href="http://pid.geoscience.gov.au/site/{{ site_no }}">http://pid.geoscience.gov.au/site/{{ site_no }}</a>
+        Geoscience Australia {{ year_acquired }} "Site {{ site_no }}". A digital catalogue record of a site utilised by Geoscience Australia. Accessed {{ date_now }}. <a href="http://pid.geoscience.gov.au/site/ga/{{ site_no }}">http://pid.geoscience.gov.au/site/{{ site_no }}</a>
     </code>
 {% endblock %}

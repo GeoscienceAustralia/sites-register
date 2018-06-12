@@ -27,7 +27,7 @@ ADMIN_EMAIL = 'dataman@ga.gov.au'
 URI_NETWORK_CLASS = 'http://pid.geoscience.gov.au/def/ont/ga/pdm#SiteNetwork'
 URI_NETWORK_INSTANCE_BASE = 'http://pid.geoscience.gov.au/network/'
 URI_SITE_CLASS = 'http://pid.geoscience.gov.au/def/ont/ga/pdm#Site'
-URI_SITE_INSTANCE_BASE = 'http://pid.geoscience.gov.au/site/'
+URI_SITE_INSTANCE_BASE = 'http://localhost:5000/site/'
 
 GOOGLE_MAPS_API_KEY_EMBED = 'AIzaSyDhuFCoJynhhQT7rcgKYzk3i7K77IEwjO4'
 GOOGLE_MAPS_API_KEY = 'AIzaSyCUDcjVRsIHVHpv53r7ZnaX5xzqJbyGk58'

@@ -176,21 +176,24 @@ class Site:
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'X'):
                         self.x = float(root.ROW.GEOM.SDO_POINT.X)
                         self.centroid_x = self.x
+                    else:
+                        self.geometry_type = None  # i.e. without an x, this can't be a point. Likely a polygon
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'Y'):
                         self.y = float(root.ROW.GEOM.SDO_POINT.Y)
                         self.centroid_y = self.y
                     if hasattr(root.ROW.GEOM.SDO_POINT, 'Z'):
                         self.z = float(root.ROW.GEOM.SDO_POINT.Z)
-                elif hasattr(root.ROW.GEOM, 'SDO_ORDINATES'):
+
+                if hasattr(root.ROW.GEOM, 'SDO_ORDINATES'):
                     self.geometry_type = 'Polygon'
                     self.lons = []
                     self.lats = []
                     self.coords = []
-                    # iterate all childres, splitting into longs & lats
+                    # iterate all children, splitting into lons & lats & ignoring elevs
                     for i, val in enumerate(root.ROW.GEOM.SDO_ORDINATES.getchildren()):
-                        if i % 2 == 0:
+                        if i % 3 == 0:
                             self.lons.append(val)
-                        else:
+                        elif (i-1) % 3 == 0:
                             self.lats.append(val)
                     self.centroid_x = sum(self.lons)/len(self.lons)
                     self.centroid_y = sum(self.lats)/len(self.lats)

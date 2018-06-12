@@ -17,13 +17,70 @@ def index():
     )
 
 
+# this-is-the-register-of-registers
+@routes.route('/register/')
+def registers():
+    returns = {
+        "http://purl.org/linked-data/registry#Register": {
+            "renderer": "RegisterRenderer",
+            "default": "reg",
+            "alternates": {
+                "mimetypes": [
+                    "text/html",
+                    "text/turtle",
+                    "application/rdf+xml",
+                    "application/rdf+json"],
+                "default_mimetype": "text/html",
+                "namespace": "http://www.w3.org/ns/ldp#Alternates",
+                "description": "The view listing all other views of this class of object"
+            },
+            "reg": {
+                "mimetypes": [
+                    "text/html",
+                    "text/turtle",
+                    "application/rdf+xml",
+                    "application/rdf+json"],
+                "default_mimetype": "text/html",
+                "namespace": "http://purl.org/linked-data/registry#",
+                "description": "The Registry Ontology. Core ontology for linked data registry services. Based on ISO19135 but heavily modified to suit Linked Data representations and applications",
+                "containedItemClass": "http://purl.org/linked-data/registry#Register"
+            }
+        }
+    }
+    pass
+
+
+# this-is-register-x
 @routes.route('/site/')
 def sites():
-    """
-    The Register of Site
+    returns = {
+        "http://purl.org/linked-data/registry#Register": {
+            "renderer": "RegisterRenderer",
+            "default": "reg",
+            "alternates": {
+                "mimetypes": [
+                    "text/html",
+                    "text/turtle",
+                    "application/rdf+xml",
+                    "application/rdf+json"],
+                "default_mimetype": "text/html",
+                "namespace": "http://www.w3.org/ns/ldp#Alternates",
+                "description": "The view listing all other views of this class of object"
+            },
+            "reg": {
+                "mimetypes": [
+                    "text/html",
+                    "text/turtle",
+                    "application/rdf+xml",
+                    "application/rdf+json"],
+                "default_mimetype": "text/html",
+                "namespace": "http://purl.org/linked-data/registry#",
+                "description": "The Registry Ontology. Core ontology for linked data registry services. Based on ISO19135 but heavily modified to suit Linked Data representations and applications",
+                "containedItemClass": "http://pid.geoscience.gov.au/def/ont/ga/pdm#Site"
+            }
+        }
+    }
 
-    :return: HTTP Response
-    """
     # lists the views and formats available for a Sample
     views_formats = classes_functions.get_classes_views_formats() \
         .get('http://purl.org/linked-data/registry#Register')
@@ -43,8 +100,8 @@ def sites():
             return render_alternates_view(
                 class_uri,
                 uriparse.quote_plus(class_uri),
-                None,
-                None,
+                request.url,
+                request.url,
                 views_formats,
                 request.args.get('_format')
             )
@@ -139,12 +196,38 @@ def sites():
         return client_error_Response(e)
 
 
+# @this-is-for-items-in-register-x
 @routes.route('/site/<string:site_no>')
 def site(site_no):
     """
-    A single Site
-
-    :return: HTTP Response
+	"http://pid.geoscience.gov.au/def/ont/ga/pdm#Site": {
+		"renderer": "SiteRenderer",
+		"default": "pdm",
+		"alternates": {
+			"mimetypes": [
+				"text/html",
+				"text/turtle",
+				"application/rdf+xml",
+				"application/rdf+json",
+				"application/json"
+			],
+			"default_mimetype": "text/html",
+			"namespace": "http://www.w3.org/ns/ldp#Alternates",
+			"description": "The view listing all other views of this class of object"
+		},
+        "pdm": {
+			"mimetypes": ["text/html", "text/turtle", "application/rdf+xml", "application/rdf+json"],
+			"default_mimetype": "text/html",
+			"namespace": "http://pid.geoscience.gov.au/def/ont/ga/pdm",
+			"description": "Geoscience Australia's Public Data Model ontology"
+		},
+		 "nemsr": {
+			"mimetypes": ["application/vnd.geo+json"],
+			"default_mimetype": "application/vnd.geo+json",
+			"namespace": "http://www.neii.gov.au/nemsr",
+			"description": "The National Environmental Monitoring Sites Register"
+		}
+	}
     """
     # lists the views and formats available for a Site
     c = conf.URI_SITE_CLASS
@@ -159,7 +242,7 @@ def site(site_no):
 
         # if alternates model, return this info from file
         if view == 'alternates':
-            instance_uri = 'http://pid.geoscience.gov.au/site/' + site_no
+            instance_uri = 'http://pid.geoscience.gov.au/site/ga/' + site_no
             del views_formats['renderer']
             return render_alternates_view(
                 c,
